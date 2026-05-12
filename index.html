@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TeamFlow Workspace</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <section class="welcome-screen" id="welcomeScreen" aria-label="Choose profile">
+      <div class="welcome-inner">
+        <p class="eyebrow">TeamFlow Workspace</p>
+        <h1>Select workspace</h1>
+        <p class="welcome-copy">Open the supervisor view or continue as an individual team member.</p>
+        <div class="profile-grid" id="profileGrid"></div>
+      </div>
+    </section>
+
+    <div class="app-shell" id="appShell" hidden>
+      <aside class="sidebar" aria-label="Workspace navigation">
+        <div class="brand-block">
+          <img src="assets/pdf-images/pdf-image-1.jpg" alt="CCIS logo" class="brand-logo" />
+          <div>
+            <p class="eyebrow">CS1352</p>
+            <h1>TeamFlow Workspace</h1>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="Sections">
+          <button class="nav-item is-active" data-section="dashboard">Dashboard</button>
+          <button class="nav-item" data-section="decisions">Decisions</button>
+          <button class="nav-item" data-section="tasks">Team Board</button>
+          <button class="nav-item" data-section="supervisor">Supervisor Board</button>
+          <button class="nav-item" data-section="insights">Insights</button>
+          <button class="nav-item" data-section="storyboards">Storyboards</button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span class="status-dot"></span>
+          <span id="activeProfileRole">Calm mode active</span>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Imam University | CCIS</p>
+            <h2 id="activeProfileName">Human-centered project control room</h2>
+          </div>
+          <div class="topbar-actions">
+            <button class="ghost-button" id="themeToggle">Dark Mode</button>
+            <button class="ghost-button" id="linkPlatform">Link Blackboard</button>
+            <button class="ghost-button" id="switchProfile">Switch Profile</button>
+          </div>
+        </header>
+
+        <section class="section is-visible" id="dashboard">
+          <div class="metric-grid">
+            <article class="metric">
+              <span class="metric-label">Deadline</span>
+              <strong id="deadlineDays">3 days</strong>
+              <small id="deadlineLabel">Final submission window</small>
+            </article>
+            <article class="metric">
+              <span class="metric-label">Team balance</span>
+              <strong id="balanceScore">68%</strong>
+              <small id="balanceLabel">Based on live workload</small>
+            </article>
+            <article class="metric">
+              <span class="metric-label">Pending choices</span>
+              <strong id="pendingChoices">2</strong>
+              <small>Requires human approval</small>
+            </article>
+            <article class="metric">
+              <span class="metric-label">Automation</span>
+              <strong id="automationState">High</strong>
+              <small id="automationLabel">Execution stays manual</small>
+            </article>
+          </div>
+
+          <article class="assistant-brief">
+            <div>
+              <p class="eyebrow">Assistant brief</p>
+              <h3 id="briefTitle">Keep the team moving calmly</h3>
+              <p id="briefText">Resolve the delay risk first, then assign the two open tasks so the workload bars stay balanced.</p>
+            </div>
+            <button class="secondary-button" id="generateFocusPlan">Focus Plan</button>
+          </article>
+
+          <div class="dashboard-grid">
+            <article class="decision-panel" id="decisionCard">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Recommendation</p>
+                  <h3>Distribute the remaining work</h3>
+                </div>
+                <span class="confidence" id="recommendationStatus">Open</span>
+              </div>
+              <p class="panel-copy">
+                <span id="suggestionText">Based on completion speed and past contributions, I suggest assigning the presentation to Sarah and the report to Ahmed.</span>
+              </p>
+              <div class="assignment-pair">
+                <div>
+                  <span>Preparing presentation</span>
+                  <strong id="presentationOwner">Sarah</strong>
+                </div>
+                <div>
+                  <span>Writing report</span>
+                  <strong id="reportOwner">Ahmed</strong>
+                </div>
+              </div>
+              <div class="reason-list">
+                <span id="reasonFast">Sarah averages 2 days per task</span>
+                <span id="reasonBalance">Ahmed has the lightest active workload</span>
+                <span id="reasonCalendar">No calendar conflict detected</span>
+              </div>
+              <div class="button-row">
+                <button class="primary-button" id="acceptSuggestion">Accept</button>
+                <button class="secondary-button" id="modifySuggestion">Modify</button>
+                <button class="danger-button" id="rejectSuggestion">Reject</button>
+                <button class="ghost-button" id="explainSuggestion">Why?</button>
+              </div>
+            </article>
+
+            <article class="alert-panel" id="alertCard">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Private alert</p>
+                  <h3>Delay risk on Task C</h3>
+                </div>
+                <span class="risk-badge">3 days left</span>
+              </div>
+              <p class="panel-copy">
+                <span id="riskText">Sarah has not uploaded progress on programming for four days. The system recommends a polite reminder before reassignment.</span>
+              </p>
+              <div class="quiet-notice">
+                <span id="riskPrivacyText">Sent only to the team leader. No public message has been posted.</span>
+              </div>
+              <div class="button-row">
+                <button class="primary-button" id="sendReminder">Send Reminder</button>
+                <button class="secondary-button" id="reassignRisk">Reassign</button>
+                <button class="ghost-button" id="ignoreRisk">Ignore</button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="decisions">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Human approval</p>
+              <h3>Decision queue</h3>
+            </div>
+            <span class="section-count" id="decisionCount">2 open</span>
+          </div>
+
+          <div class="decision-list" id="decisionList"></div>
+        </section>
+
+        <section class="section" id="tasks">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Project space</p>
+              <h3>Team board</h3>
+            </div>
+            <div class="button-row compact-row">
+              <button class="secondary-button" id="addTask">Create Task</button>
+              <button class="ghost-button" id="resetDemo">Clear Session</button>
+            </div>
+          </div>
+          <div class="board" id="taskBoard" aria-live="polite"></div>
+        </section>
+
+        <section class="section" id="supervisor">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Faculty view</p>
+              <h3>Supervisor board</h3>
+            </div>
+            <span class="section-count">Section 173</span>
+          </div>
+          <div class="supervisor-board" id="supervisorBoard" aria-live="polite"></div>
+          <div class="supervisor-grid" id="supervisorGrid"></div>
+        </section>
+
+        <section class="section" id="insights">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Transparent analysis</p>
+              <h3>Workload and evidence</h3>
+            </div>
+            <span class="section-count">Updated today</span>
+          </div>
+          <div class="insight-grid">
+            <article class="workload-card">
+              <h4>Member workload</h4>
+              <div class="member-list" id="memberList"></div>
+            </article>
+            <article class="workload-card">
+              <h4>Risks and feedback</h4>
+              <div class="risk-list" id="riskList"></div>
+            </article>
+            <article class="workload-card">
+              <h4>Evidence considered</h4>
+              <ul class="evidence-list">
+                <li>Blackboard due dates and uploaded files</li>
+                <li>Completion speed from previous tasks</li>
+                <li>Recent message activity and contribution share</li>
+                <li>Team calendar availability this week</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="storyboards">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Low-fidelity source</p>
+              <h3>Storyboards from the assignment</h3>
+            </div>
+          </div>
+          <div class="storyboard-grid">
+            <figure>
+              <img src="assets/pdf-images/pdf-image-2.jpg" alt="Normal scenario storyboard" />
+              <figcaption>Normal scenario: accepting task distribution</figcaption>
+            </figure>
+            <figure>
+              <img src="assets/pdf-images/pdf-image-3.jpg" alt="Uncertain scenario storyboard" />
+              <figcaption>Uncertain scenario: asking for explanation</figcaption>
+            </figure>
+            <figure>
+              <img src="assets/pdf-images/pdf-image-4.jpg" alt="Delay risk storyboard" />
+              <figcaption>Risk scenario: private delay alert</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="activity-strip" aria-live="polite">
+          <h3>Activity log</h3>
+          <ol id="activityLog"></ol>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="modalBackdrop" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-header">
+          <h3 id="modalTitle"></h3>
+          <button class="icon-button" id="closeModal" aria-label="Close modal">x</button>
+        </div>
+        <div id="modalBody"></div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
