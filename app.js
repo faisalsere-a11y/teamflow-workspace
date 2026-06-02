@@ -1,132 +1,85 @@
-const storageKey = "smart-group-project-assistant-v4";
+import {
+  addAttachment,
+  addFeedback,
+  addUserToTeam,
+  apiRoutes,
+  assignTask,
+  authenticateDemoUser,
+  clone,
+  createDemoUser,
+  createInitialDemoState,
+  markNotificationRead,
+  offboardUser,
+  reportingForUser,
+  roleSectionsForUser,
+  setTaskStatus,
+  teamMembers,
+  userName,
+  visibleTasksForUser,
+} from "./demo-model.mjs";
 
-const members = [
-  { name: "Faisal", initials: "FA", role: "Integration and demo", availability: "Available evenings", speed: 86 },
-  { name: "Mohammed", initials: "MO", role: "Research and report", availability: "Needs clear scope", speed: 73 },
-  { name: "Yousef", initials: "YO", role: "Programming", availability: "Can help with prototype", speed: 82 },
-  { name: "Ahmed", initials: "AH", role: "Presentation and review", availability: "Free this week", speed: 78 }
-];
+const storageKey = "teamflow-static-rbac-demo-v1";
 
-const profiles = [
-  { id: "supervisor", name: "Dr. Imran", initials: "DI", role: "Supervisor", kind: "supervisor", accent: "supervisor" },
-  { id: "faisal", name: "Faisal", initials: "FA", role: "Team Member", kind: "member", member: "Faisal" },
-  { id: "mohammed", name: "Mohammed", initials: "MO", role: "Team Member", kind: "member", member: "Mohammed" },
-  { id: "yousef", name: "Yousef", initials: "YO", role: "Team Member", kind: "member", member: "Yousef" },
-  { id: "ahmed", name: "Ahmed", initials: "AH", role: "Team Member", kind: "member", member: "Ahmed" }
-];
-
-const initialState = {
-  section: "dashboard",
-  theme: "light",
-  activeProfileId: null,
-  linked: false,
-  recommendation: {
-    status: "Open",
-    message: "Assign the presentation to Ahmed and the report to Mohammed.",
-    reason: "Ahmed is available for visual delivery, and Mohammed is best positioned for writing."
-  },
-  riskDecision: "Open",
-  assistantBrief: "First clear the programming delay, then assign the remaining deliverables. Keep the team discussion short and evidence-based.",
-  tasks: [
-    { id: "presentation", title: "Prepare presentation", owner: "Unassigned", status: "backlog", points: 3, progress: 0, due: "May 7", risk: "normal", activity: "Not started" },
-    { id: "report", title: "Write final report", owner: "Unassigned", status: "backlog", points: 4, progress: 0, due: "May 7", risk: "normal", activity: "Not started" },
-    { id: "prototype", title: "Programming prototype", owner: "Yousef", status: "doing", points: 5, progress: 35, due: "May 6", risk: "delay", activity: "No upload for 4 days" },
-    { id: "integration", title: "Integrate dashboard screens", owner: "Faisal", status: "doing", points: 3, progress: 55, due: "May 6", risk: "normal", activity: "Progress uploaded" },
-    { id: "references", title: "Review Chapter 3 references", owner: "Mohammed", status: "done", points: 2, progress: 100, due: "May 3", risk: "normal", activity: "Submitted" },
-    { id: "sketches", title: "Clean storyboard sketches", owner: "Yousef", status: "done", points: 2, progress: 100, due: "May 2", risk: "normal", activity: "Submitted" }
-  ],
-  feedback: [
-    { id: "fb1", owner: "Faisal", from: "Dr. Imran", text: "Good dashboard direction. Make sure the demo flow is easy to explain.", task: "Integrate dashboard screens" },
-    { id: "fb2", owner: "Yousef", from: "Dr. Imran", text: "Prototype risk is visible. Upload a small proof of progress before reassigning.", task: "Programming prototype" },
-    { id: "fb3", owner: "Mohammed", from: "Dr. Imran", text: "Reference section is clear. Connect it to human-control justification.", task: "Review Chapter 3 references" },
-    { id: "fb4", owner: "Ahmed", from: "Dr. Imran", text: "Presentation can be concise: problem, assistant suggestion, human decision.", task: "Prepare presentation" }
-  ],
-  supervisorTeams: [
-    { id: "campus", name: "Campus Planner", state: "stable", progress: 88, balance: 91, risk: 0, note: "All members uploaded this week.", reviewed: false },
-    { id: "lab", name: "Lab Scheduler", state: "watch", progress: 64, balance: 72, risk: 1, note: "Quiet for two days.", reviewed: false },
-    { id: "clinic", name: "Clinic Queue", state: "risk", progress: 46, balance: 38, risk: 2, note: "Two members overloaded.", reviewed: false }
-  ],
-  log: [
-    "Workspace created for CS1352.",
-    "Delay risk detected privately for Programming prototype.",
-    "Recommendation waiting for a human decision."
-  ]
+const sectionLabels = {
+  dashboard: "Dashboard",
+  teams: "Team Management",
+  tasks: "Tasks",
+  notifications: "Notifications",
+  analytics: "Analytics",
 };
 
-const columns = [
-  { id: "backlog", title: "Backlog" },
-  { id: "doing", title: "Doing" },
-  { id: "done", title: "Done" }
-];
+const priorityLabels = {
+  LOW: "Low",
+  MEDIUM: "Medium",
+  HIGH: "High",
+};
+
+const statusLabels = {
+  TODO: "To-Do",
+  IN_PROGRESS: "In Progress",
+  DONE: "Completed",
+};
 
 let state = loadState();
+cleanupCredentialQuery();
 
 const el = {
   body: document.body,
-  welcomeScreen: document.getElementById("welcomeScreen"),
+  loginScreen: document.getElementById("loginScreen"),
+  loginForm: document.getElementById("loginForm"),
+  loginEmail: document.getElementById("loginEmail"),
+  loginPassword: document.getElementById("loginPassword"),
+  demoAccounts: document.getElementById("demoAccounts"),
   appShell: document.getElementById("appShell"),
-  profileGrid: document.getElementById("profileGrid"),
-  nav: document.querySelectorAll(".nav-item"),
-  sections: document.querySelectorAll(".section"),
+  navList: document.getElementById("navList"),
+  activeRoleLabel: document.getElementById("activeRoleLabel"),
+  activeUserName: document.getElementById("activeUserName"),
+  notificationToggle: document.getElementById("notificationToggle"),
+  notificationCount: document.getElementById("notificationCount"),
+  notificationPopover: document.getElementById("notificationPopover"),
   themeToggle: document.getElementById("themeToggle"),
-  linkPlatform: document.getElementById("linkPlatform"),
-  switchProfile: document.getElementById("switchProfile"),
-  addTask: document.getElementById("addTask"),
   resetDemo: document.getElementById("resetDemo"),
-  activeProfileName: document.getElementById("activeProfileName"),
-  activeProfileRole: document.getElementById("activeProfileRole"),
-  deadlineDays: document.getElementById("deadlineDays"),
-  deadlineLabel: document.getElementById("deadlineLabel"),
-  balanceScore: document.getElementById("balanceScore"),
-  balanceLabel: document.getElementById("balanceLabel"),
-  pendingChoices: document.getElementById("pendingChoices"),
-  automationState: document.getElementById("automationState"),
-  automationLabel: document.getElementById("automationLabel"),
-  briefTitle: document.getElementById("briefTitle"),
-  briefText: document.getElementById("briefText"),
-  suggestionText: document.getElementById("suggestionText"),
-  presentationOwner: document.getElementById("presentationOwner"),
-  reportOwner: document.getElementById("reportOwner"),
-  reasonFast: document.getElementById("reasonFast"),
-  reasonBalance: document.getElementById("reasonBalance"),
-  reasonCalendar: document.getElementById("reasonCalendar"),
-  recommendationStatus: document.getElementById("recommendationStatus"),
-  riskText: document.getElementById("riskText"),
-  riskPrivacyText: document.getElementById("riskPrivacyText"),
-  taskBoard: document.getElementById("taskBoard"),
-  supervisorBoard: document.getElementById("supervisorBoard"),
-  supervisorGrid: document.getElementById("supervisorGrid"),
-  decisionCount: document.getElementById("decisionCount"),
-  decisionList: document.getElementById("decisionList"),
-  memberList: document.getElementById("memberList"),
-  riskList: document.getElementById("riskList"),
+  logoutButton: document.getElementById("logoutButton"),
+  sections: document.querySelectorAll(".section"),
+  dashboardView: document.getElementById("dashboardView"),
+  teamsView: document.getElementById("teamsView"),
+  tasksView: document.getElementById("tasksView"),
+  notificationsView: document.getElementById("notificationsView"),
+  analyticsView: document.getElementById("analyticsView"),
   activityLog: document.getElementById("activityLog"),
   modalBackdrop: document.getElementById("modalBackdrop"),
   modalTitle: document.getElementById("modalTitle"),
   modalBody: document.getElementById("modalBody"),
   closeModal: document.getElementById("closeModal"),
-  toast: document.getElementById("toast")
+  toast: document.getElementById("toast"),
 };
-
-function clone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
 
 function loadState() {
   try {
     const saved = localStorage.getItem(storageKey);
-    return saved ? { ...clone(initialState), ...JSON.parse(saved) } : clone(initialState);
+    return saved ? { ...createInitialDemoState(), ...JSON.parse(saved) } : createInitialDemoState();
   } catch {
-    return clone(initialState);
+    return createInitialDemoState();
   }
 }
 
@@ -134,519 +87,501 @@ function saveState() {
   localStorage.setItem(storageKey, JSON.stringify(state));
 }
 
-function activeProfile() {
-  return profiles.find((profile) => profile.id === state.activeProfileId) || null;
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function activeUser() {
+  return state.users.find((user) => user.id === state.activeUserId) || null;
 }
 
 function isSupervisor() {
-  return activeProfile()?.kind === "supervisor";
+  return ["ADMIN", "SUPERVISOR"].includes(activeUser()?.role);
 }
 
-function visibleSectionsForProfile() {
-  return isSupervisor()
-    ? ["dashboard", "supervisor", "tasks", "decisions", "insights", "storyboards"]
-    : ["dashboard", "tasks", "insights", "storyboards"];
+function currentSection() {
+  const user = activeUser();
+  const sections = roleSectionsForUser(user);
+  if (!sections.length) return "dashboard";
+  return sections.includes(state.section) ? state.section : sections[0];
 }
 
-function renderProfiles() {
-  el.profileGrid.innerHTML = profiles.map((profile) => `
-    <button class="profile-card ${profile.kind === "supervisor" ? "profile-supervisor" : ""}" data-profile-id="${escapeHtml(profile.id)}">
-      <span class="profile-avatar">${escapeHtml(profile.initials)}</span>
-      <strong>${escapeHtml(profile.name)}</strong>
-      <small>${escapeHtml(profile.role)}</small>
+function demoJwt(user) {
+  const header = window.btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const payload = window.btoa(JSON.stringify({ sub: user.id, role: user.role, demo: true }));
+  return `${header}.${payload}.local-demo-signature`;
+}
+
+function roleText(user) {
+  if (!user) return "Logged out";
+  return user.role.replace("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function renderLogin() {
+  const demoUsers = state.users.filter((user) => user.role !== "ADMIN");
+  el.demoAccounts.innerHTML = demoUsers.map((user) => `
+    <button class="demo-account" data-demo-email="${escapeHtml(user.email)}">
+      <span>${initials(user.name)}</span>
+      <strong>${escapeHtml(user.name)}</strong>
+      <small>${escapeHtml(roleText(user))}</small>
+      <em>${escapeHtml(user.email)}</em>
     </button>
   `).join("");
 }
 
-function renderNavigation() {
-  const allowed = visibleSectionsForProfile();
-  el.nav.forEach((item) => {
-    const visible = allowed.includes(item.dataset.section);
-    item.hidden = !visible;
-    item.disabled = !visible;
-    item.classList.toggle("is-active", item.dataset.section === state.section);
-  });
-}
-
-function openProfile(profileId) {
-  state.activeProfileId = profileId;
-  const profile = activeProfile();
-  const allowed = visibleSectionsForProfile();
-  state.section = profile.kind === "supervisor" ? "supervisor" : "dashboard";
-  el.welcomeScreen.hidden = true;
+function showApp() {
+  el.loginScreen.hidden = true;
   el.appShell.hidden = false;
-  el.body.dataset.role = profile.kind;
-  renderNavigation();
-  showSection(allowed.includes(state.section) ? state.section : allowed[0]);
+  el.body.dataset.role = activeUser()?.role || "anonymous";
   render();
-  showToast(`Opened ${profile.name}'s workspace.`);
 }
 
-function switchProfile() {
-  state.activeProfileId = null;
+function showLogin() {
+  state.activeUserId = null;
   saveState();
   el.appShell.hidden = true;
-  el.welcomeScreen.hidden = false;
-  renderProfiles();
+  el.loginScreen.hidden = false;
+  el.notificationPopover.hidden = true;
+  renderLogin();
 }
 
-function showSection(id) {
-  const allowed = visibleSectionsForProfile();
-  state.section = allowed.includes(id) ? id : allowed[0];
-  el.sections.forEach((section) => section.classList.toggle("is-visible", section.id === state.section));
-  renderNavigation();
+function login(email, password) {
+  try {
+    const user = authenticateDemoUser(state, email, password);
+    state.activeUserId = user.id;
+    state.section = roleSectionsForUser(user)[0];
+    addAudit(`${user.name} signed in through the local JWT demo flow.`);
+    cleanupCredentialQuery();
+    saveState();
+    showApp();
+    toast(`Signed in as ${user.name}.`);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function cleanupCredentialQuery() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("email") || params.has("password")) {
+    window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.hash}`);
+  }
+}
+
+function render() {
+  const user = activeUser();
+  applyTheme();
+  if (!user) {
+    showLogin();
+    return;
+  }
+
+  state.section = currentSection();
+  el.activeUserName.textContent = `${user.name}'s workspace`;
+  el.activeRoleLabel.textContent = `${roleText(user)} route`;
+  renderNavigation(user);
+  renderNotificationsChrome(user);
+  renderSections();
+  renderAudit();
   saveState();
 }
 
-function applyTheme() {
-  el.body.dataset.theme = state.theme;
-  el.themeToggle.textContent = state.theme === "dark" ? "Light Mode" : "Dark Mode";
+function renderNavigation(user) {
+  const allowed = roleSectionsForUser(user);
+  el.navList.innerHTML = allowed.map((section) => `
+    <button class="nav-item ${section === state.section ? "is-active" : ""}" data-section="${escapeHtml(section)}">
+      ${escapeHtml(sectionLabels[section])}
+    </button>
+  `).join("");
 }
 
-function toggleTheme() {
-  state.theme = state.theme === "dark" ? "light" : "dark";
-  applyTheme();
-  addLog(`${state.theme === "dark" ? "Dark" : "Light"} mode enabled.`);
-  showToast(`${state.theme === "dark" ? "Dark" : "Light"} mode enabled.`);
-}
-
-function getTask(id) {
-  return state.tasks.find((task) => task.id === id);
-}
-
-function activeTasks() {
-  return state.tasks.filter((task) => task.status !== "done");
-}
-
-function visibleTasks() {
-  const profile = activeProfile();
-  if (!profile || profile.kind === "supervisor") {
-    return state.tasks;
-  }
-  return state.tasks.filter((task) => task.owner === profile.member);
-}
-
-function visibleActiveTasks() {
-  return visibleTasks().filter((task) => task.status !== "done");
-}
-
-function memberStats() {
-  return members.map((member) => {
-    const owned = state.tasks.filter((task) => task.owner === member.name);
-    const active = owned.filter((task) => task.status !== "done");
-    const done = owned.filter((task) => task.status === "done");
-    return {
-      ...member,
-      activeTasks: active.length,
-      doneTasks: done.length,
-      load: active.reduce((sum, task) => sum + task.points, 0),
-      completed: done.reduce((sum, task) => sum + task.points, 0),
-      risks: active.filter((task) => task.risk === "delay" || task.risk === "watch").length
-    };
-  });
-}
-
-function balanceScore() {
-  const loads = memberStats().map((member) => member.load);
-  const max = Math.max(...loads, 1);
-  const min = Math.min(...loads);
-  return Math.round(Math.max(0, 100 - ((max - min) / max) * 100));
-}
-
-function overallProgress() {
-  const total = state.tasks.reduce((sum, task) => sum + task.points, 0);
-  const done = state.tasks.reduce((sum, task) => sum + (task.points * task.progress) / 100, 0);
-  return total ? Math.round((done / total) * 100) : 0;
-}
-
-function riskTask() {
-  return state.tasks.find((task) => task.risk === "delay") || state.tasks.find((task) => task.risk === "watch");
-}
-
-function suggestedOwners() {
-  const stats = memberStats();
-  const availableFast = stats
-    .filter((member) => member.risks === 0)
-    .sort((a, b) => b.speed - a.speed || a.load - b.load)[0];
-  const lightest = stats
-    .filter((member) => member.name !== availableFast?.name)
-    .sort((a, b) => a.load - b.load || b.speed - a.speed)[0];
-  return {
-    presentation: availableFast?.name || "Sarah",
-    report: lightest?.name || "Ahmed"
-  };
-}
-
-function openDecisionCount() {
-  if (!isSupervisor()) {
-    const profile = activeProfile();
-    return profile ? visibleActiveTasks().filter((task) => task.risk === "delay" || task.risk === "watch").length : 0;
-  }
-  let count = 0;
-  if (state.recommendation.status === "Open") count++;
-  if (state.riskDecision === "Open" && riskTask()) count++;
-  count += state.tasks.filter((task) => task.status === "done" && !task.approved).length;
-  return count;
-}
-
-function personalProgress(memberName) {
-  const tasks = state.tasks.filter((task) => task.owner === memberName);
-  const total = tasks.reduce((sum, task) => sum + task.points, 0);
-  const progress = tasks.reduce((sum, task) => sum + (task.points * task.progress) / 100, 0);
-  return total ? Math.round((progress / total) * 100) : 0;
-}
-
-function memberBrief(memberName) {
-  const tasks = state.tasks.filter((task) => task.owner === memberName);
-  const stuck = tasks.find((task) => task.risk === "delay" || task.risk === "watch");
-  const active = tasks.filter((task) => task.status !== "done");
-  if (stuck) {
-    return `Update ${stuck.title} first. If you are blocked, mark it stuck so the supervisor sees the right signal.`;
-  }
-  if (active.length) {
-    return `Focus on ${active[0].title}. A small progress update is enough to keep the team aligned.`;
-  }
-  return "You have no active tasks. Check supervisor feedback or offer help on a team risk.";
-}
-
-function setRecommendationControls(showSupervisorControls) {
-  ["acceptSuggestion", "modifySuggestion", "rejectSuggestion", "sendReminder", "reassignRisk", "ignoreRisk"].forEach((id) => {
-    const button = document.getElementById(id);
-    button.hidden = !showSupervisorControls;
-  });
-  document.getElementById("explainSuggestion").hidden = false;
+function renderSections() {
+  el.sections.forEach((section) => section.classList.toggle("is-visible", section.id === state.section));
+  renderDashboard();
+  renderTeams();
+  renderTasks();
+  renderNotificationsSection();
+  renderAnalytics();
 }
 
 function renderDashboard() {
-  const profile = activeProfile();
-  const balance = balanceScore();
-  const risk = riskTask();
-  const suggested = suggestedOwners();
-  const presentation = getTask("presentation");
-  const report = getTask("report");
-  const myTasks = visibleTasks();
-  const myActive = visibleActiveTasks();
-  const myDone = myTasks.filter((task) => task.status === "done");
-  const myRisk = profile?.kind === "member" ? myActive.find((task) => task.risk === "delay" || task.risk === "watch") : risk;
-
-  el.activeProfileName.textContent = profile ? `${profile.name}'s workspace` : "TeamFlow Workspace";
-  el.activeProfileRole.textContent = profile ? `${profile.role} profile` : "Choose a profile";
-  el.linkPlatform.hidden = profile?.kind !== "supervisor";
-  el.addTask.hidden = profile?.kind !== "supervisor";
-  el.resetDemo.hidden = profile?.kind !== "supervisor";
-
-  el.deadlineDays.textContent = myActive.some((task) => task.due === "May 6") ? "1 day" : "3 days";
-  el.deadlineLabel.textContent = myRisk ? `${myRisk.title} is closest` : profile?.kind === "member" ? "Your visible deadline window" : "Final submission window";
-  el.balanceScore.textContent = profile?.kind === "member" ? `${personalProgress(profile.member)}%` : `${balance}%`;
-  el.balanceLabel.textContent = profile?.kind === "member" ? "Your milestone progress" : balance >= 75 ? "Healthy spread of active work" : "One member is carrying too much";
-  el.pendingChoices.textContent = openDecisionCount();
-  el.automationState.textContent = state.linked ? "Linked" : "Demo";
-  el.automationLabel.textContent = state.linked ? "Course tasks imported" : "Blackboard is optional in this prototype";
-  el.briefTitle.textContent = profile?.kind === "member" ? "Your focus" : risk ? "Protect the deadline" : "Keep momentum";
-  el.briefText.textContent = profile?.kind === "member" ? memberBrief(profile.member) : state.assistantBrief;
-
-  const proposedPresentation = presentation.owner === "Unassigned" ? suggested.presentation : presentation.owner;
-  const proposedReport = report.owner === "Unassigned" ? suggested.report : report.owner;
-  el.presentationOwner.textContent = proposedPresentation;
-  el.reportOwner.textContent = proposedReport;
-  el.suggestionText.textContent = profile?.kind === "member"
-    ? `You have ${myActive.length} active task${myActive.length === 1 ? "" : "s"} and ${myDone.length} completed task${myDone.length === 1 ? "" : "s"}.`
-    : state.recommendation.message;
-  el.reasonFast.textContent = profile?.kind === "member" ? "Use status when you are stuck" : `${proposedPresentation} is the best fit for visual delivery`;
-  el.reasonBalance.textContent = profile?.kind === "member" ? "Only your assigned work appears in Team Board" : `${proposedReport} keeps the active workload fair`;
-  el.reasonCalendar.textContent = profile?.kind === "member" ? "Supervisor feedback appears in Insights" : state.linked ? "Checked against imported course dates" : "Calendar sync is not required for this demo";
-  el.recommendationStatus.textContent = profile?.kind === "member" ? "Personal" : state.recommendation.status;
-  el.recommendationStatus.className = `confidence ${profile?.kind === "member" || state.recommendation.status !== "Open" ? "done" : ""}`;
-
-  setRecommendationControls(profile?.kind === "supervisor");
-
-  if (myRisk) {
-    el.riskText.textContent = profile?.kind === "member"
-      ? `You marked attention needed on ${myRisk.title}: ${myRisk.activity}.`
-      : `${myRisk.owner} needs attention on ${myRisk.title}: ${myRisk.activity}.`;
-    el.riskPrivacyText.textContent = profile?.kind === "member"
-      ? "Use Team Board to update progress or change status to Stuck."
-      : state.riskDecision === "Open" ? "Private to the team leader until an action is chosen." : `Handled: ${state.riskDecision}.`;
-  } else {
-    el.riskText.textContent = "No active delay risk. The assistant stays quiet.";
-    el.riskPrivacyText.textContent = "No intervention needed.";
-  }
+  const user = activeUser();
+  const tasks = visibleTasksForUser(state, user);
+  el.dashboardView.innerHTML = isSupervisor()
+    ? supervisorDashboard(user, tasks)
+    : memberDashboard(user, tasks);
 }
 
-function renderTeamBoard() {
-  el.taskBoard.innerHTML = columns.map((column) => {
-    const tasks = visibleTasks().filter((task) => task.status === column.id);
-    const cards = tasks.map((task) => `
-      <article class="task-card" data-risk="${escapeHtml(task.risk)}">
-        <div class="task-card-header">
-          <strong>${escapeHtml(task.title)}</strong>
-          <span class="state-pill ${task.risk === "delay" ? "warning" : ""}">${task.risk === "delay" ? "Risk" : task.progress + "%"}</span>
+function supervisorDashboard(user, tasks) {
+  const managed = teamMembers(state, user.id);
+  const active = tasks.filter((task) => task.status !== "DONE");
+  const completed = tasks.filter((task) => task.status === "DONE");
+  const velocity = tasks.length ? Math.round((completed.length / tasks.length) * 100) : 0;
+  const warnings = reportingForUser(state, user.id).recommendations;
+
+  return `
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Supervisor dashboard</p>
+        <h3>Operational control panel</h3>
+      </div>
+      <button class="primary-button" data-action="openTaskModal">Quick Task Creation</button>
+    </div>
+    <div class="metric-grid">
+      ${metric("Managed Team Members", managed.length, "Assigned to your team")}
+      ${metric("Active Workloads", active.length, "Open or in-progress tasks")}
+      ${metric("Completed Cycles", completed.length, "Tasks with completed_at")}
+      ${metric("Productivity Velocity", `${velocity}%`, "Done against total volume")}
+    </div>
+    <div class="dashboard-grid">
+      <article class="decision-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Team management hub</p>
+            <h3>Roster and capacity</h3>
+          </div>
+          <span class="confidence">${managed.length} active</span>
         </div>
-        <div class="task-progress"><span style="width: ${task.progress}%"></span></div>
-        <div class="task-meta">
-          <span>${escapeHtml(task.owner)}</span>
-          <span>${escapeHtml(task.due)}</span>
-          <span>${task.points} pts</span>
-          <span>${escapeHtml(task.activity)}</span>
+        <div class="member-list compact-list">
+          ${managed.map((member) => rosterRow(member)).join("")}
         </div>
-        <div class="task-controls">
-          ${isSupervisor() ? `<select data-task-control="owner" data-task-id="${escapeHtml(task.id)}">${ownerOptions(task.owner)}</select>` : ""}
-          <select data-task-control="status" data-task-id="${escapeHtml(task.id)}">${statusOptions(task.status)}</select>
-          <button class="ghost-button mini-button" data-action="progress" data-task-id="${escapeHtml(task.id)}">Log +25%</button>
-          ${!isSupervisor() ? `<button class="ghost-button mini-button" data-action="stuck" data-task-id="${escapeHtml(task.id)}">Stuck</button>` : ""}
+        <button class="secondary-button" data-section-jump="teams">Manage roster</button>
+      </article>
+      <article class="alert-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Predictive panel</p>
+            <h3>Delay exposure</h3>
+          </div>
+          <span class="risk-badge">${warnings.length} warnings</span>
+        </div>
+        <div class="recommendation-list">
+          ${warnings.length ? warnings.map((warning) => `<p>${escapeHtml(warning)}</p>`).join("") : "<p>No near-deadline warnings for your managed team.</p>"}
         </div>
       </article>
-    `).join("");
-
-    return `
-      <div class="board-column">
-        <h4>${escapeHtml(column.title)}<span class="section-count">${tasks.length}</span></h4>
-        ${cards || '<p class="empty-column">No tasks here.</p>'}
+    </div>
+    <article class="assistant-brief">
+      <div>
+        <p class="eyebrow">Auth contract</p>
+        <h3>JWT preview and RBAC guard</h3>
+        <p class="token-preview">${escapeHtml(demoJwt(user))}</p>
       </div>
-    `;
-  }).join("");
-}
-
-function currentTeamForSupervisor() {
-  const risks = state.tasks.filter((task) => task.status !== "done" && (task.risk === "delay" || task.risk === "watch")).length;
-  const balance = balanceScore();
-  const progress = overallProgress();
-  return {
-    id: "smart",
-    name: "Smart Assistant Team",
-    state: risks > 0 ? "risk" : balance < 70 ? "watch" : "stable",
-    progress,
-    balance,
-    risk: risks,
-    note: risks > 0 ? "Needs intervention on delayed work." : "No urgent intervention.",
-    reviewed: false,
-    current: true
-  };
-}
-
-function renderSupervisorBoard() {
-  const teams = [currentTeamForSupervisor(), ...state.supervisorTeams];
-  const groups = [
-    { id: "risk", title: "Needs action" },
-    { id: "watch", title: "Watch" },
-    { id: "stable", title: "Stable" }
-  ];
-
-  el.supervisorBoard.innerHTML = groups.map((group) => {
-    const groupTeams = teams.filter((team) => team.state === group.id);
-    const cards = groupTeams.map((team) => `
-      <article class="supervisor-team-card" data-state="${escapeHtml(team.state)}">
-        <div class="task-card-header">
-          <strong>${escapeHtml(team.name)}</strong>
-          <span class="state-pill ${team.state === "stable" ? "done" : "warning"}">${team.progress}%</span>
-        </div>
-        <p>${escapeHtml(team.note)}</p>
-        <div class="task-meta">
-          <span>${team.balance}% balance</span>
-          <span>${team.risk} risks</span>
-          <span>${team.reviewed ? "Reviewed" : "Not reviewed"}</span>
-        </div>
-        <div class="supervisor-actions">
-          <button class="ghost-button mini-button" data-action="${team.current ? "openTeamBoard" : "requestUpdate"}" data-team-id="${escapeHtml(team.id)}">${team.current ? "Open Team Board" : "Request Update"}</button>
-          <button class="ghost-button mini-button" data-action="checkIn" data-team-id="${escapeHtml(team.id)}">Check-in</button>
-          <button class="ghost-button mini-button" data-action="reviewed" data-team-id="${escapeHtml(team.id)}">Reviewed</button>
-        </div>
-      </article>
-    `).join("");
-
-    return `
-      <div class="supervisor-column">
-        <h4>${escapeHtml(group.title)}<span class="section-count">${groupTeams.length}</span></h4>
-        ${cards || '<p class="empty-column">No teams here.</p>'}
-      </div>
-    `;
-  }).join("");
-}
-
-function renderSupervisorSummary() {
-  const team = currentTeamForSupervisor();
-  el.supervisorGrid.innerHTML = `
-    <article class="team-card">
-      <span class="state-pill ${team.state === "stable" ? "done" : "warning"}">${team.state === "stable" ? "Stable" : "Watch"}</span>
-      <h4>${escapeHtml(team.name)}</h4>
-      <p>${team.risk} risks, ${team.balance}% balance, ${team.progress}% overall progress.</p>
-      <meter min="0" max="100" value="${team.progress}"></meter>
-    </article>
-    <article class="team-card">
-      <span class="state-pill">Supervisor need</span>
-      <h4>Best next action</h4>
-      <p>${team.risk > 0 ? "Ask the leader to resolve the delay before grading-week pressure builds." : "No direct intervention. Keep monitoring quietly."}</p>
-      <meter min="0" max="100" value="${team.balance}"></meter>
-    </article>
-    <article class="team-card">
-      <span class="state-pill done">HCAI fit</span>
-      <h4>Human control</h4>
-      <p>The assistant suggests and explains. Students and supervisors still make the decision.</p>
-      <meter min="0" max="100" value="92"></meter>
+      <span class="state-pill">restrictTo(${escapeHtml(user.role)})</span>
     </article>
   `;
 }
 
-function renderDecisions() {
+function memberDashboard(user, tasks) {
+  const open = tasks.filter((task) => task.status !== "DONE");
+  const done = tasks.filter((task) => task.status === "DONE");
+  const ratio = tasks.length ? Math.round((done.length / tasks.length) * 100) : 0;
+  const dueSoon = open.filter((task) => daysUntil(task.due_date) <= 2);
+
+  return `
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Team member dashboard</p>
+        <h3>Personal Kanban and progress</h3>
+      </div>
+      <span class="section-count">${tasks.length} visible tasks</span>
+    </div>
+    <div class="metric-grid">
+      ${metric("Approaching Deadlines", dueSoon.length, "Due inside two days")}
+      ${metric("Fulfillment Ratio", `${ratio}%`, "Completed personal queue")}
+      ${metric("Open Queue", open.length, "Items still moving")}
+      ${metric("Feedback Items", feedbackForUser(user.id).length, "Supervisor evaluations")}
+    </div>
+    <div class="member-kanban">
+      ${kanbanColumns(tasks)}
+    </div>
+  `;
+}
+
+function renderTeams() {
+  const user = activeUser();
   if (!isSupervisor()) {
-    el.decisionCount.textContent = "Personal";
-    el.decisionList.innerHTML = `
-      <article class="decision-row">
-        <div>
-          <h4>How to use your workspace</h4>
-          <p>Update progress, mark a task stuck when blocked, and read supervisor feedback in Insights.</p>
-        </div>
-        <span class="state-pill done">Team member</span>
-      </article>
-    `;
+    el.teamsView.innerHTML = restrictedPanel();
     return;
   }
-  const risk = riskTask();
-  const items = [
-    {
-      title: "Task assignment recommendation",
-      copy: state.recommendation.reason,
-      status: state.recommendation.status,
-      actions: [
-        ["Accept", "accept"],
-        ["Modify", "modify"],
-        ["Reject", "reject"]
-      ]
-    },
-    {
-      title: "Delay risk response",
-      copy: risk ? `${risk.title} needs a leader decision.` : "No active delay risk.",
-      status: risk ? state.riskDecision : "Clear",
-      actions: risk ? [
-        ["Reminder", "reminder"],
-        ["Reassign", "reassignRisk"],
-        ["Ignore", "ignore"]
-      ] : []
-    },
-    {
-      title: "Reference suggestion",
-      copy: "Chapter 3 is useful for the HCAI justification section.",
-      status: "Accepted",
-      actions: [["Why?", "reference"]]
-    }
-  ];
+  const team = state.teams.find((item) => item.supervisor_id === user.id);
+  const managed = teamMembers(state, user.id);
+  const unassigned = state.users.filter((item) => item.role === "TEAM_MEMBER" && !item.team_id);
 
-  el.decisionCount.textContent = `${openDecisionCount()} open`;
-  const approvalTasks = state.tasks.filter((task) => task.status === "done" && !task.approved);
-  const decisionMarkup = items.map((item) => `
-    <article class="decision-row ${item.status !== "Open" ? "muted-row" : ""}">
+  el.teamsView.innerHTML = `
+    <div class="section-heading">
       <div>
-        <h4>${escapeHtml(item.title)}</h4>
-        <p>${escapeHtml(item.copy)}</p>
+        <p class="eyebrow">Team management hub</p>
+        <h3>${escapeHtml(team?.name || "Managed team")}</h3>
       </div>
-      <div class="decision-actions">
-        <span class="state-pill ${item.status === "Open" ? "warning" : "done"}">${escapeHtml(item.status)}</span>
-        ${item.actions.map(([label, action]) => `<button class="ghost-button mini-button" data-action="${action}">${escapeHtml(label)}</button>`).join("")}
-      </div>
-    </article>
-  `).join("");
-  const approvalMarkup = approvalTasks.map((task) => `
-    <article class="decision-row">
-      <div>
-        <h4>Approve ${escapeHtml(task.title)}</h4>
-        <p>${escapeHtml(task.owner)} marked this complete. Review it before final submission.</p>
-      </div>
-      <div class="decision-actions">
-        <span class="state-pill warning">Review</span>
-        <button class="ghost-button mini-button" data-action="approve" data-task-id="${escapeHtml(task.id)}">Approve</button>
-        <button class="ghost-button mini-button" data-action="feedback" data-task-id="${escapeHtml(task.id)}">Feedback</button>
-      </div>
-    </article>
-  `).join("");
-  el.decisionList.innerHTML = `${decisionMarkup}${approvalMarkup || ""}`;
+      <span class="section-count">${managed.length} members</span>
+    </div>
+    <div class="team-management-grid">
+      <article class="workload-card">
+        <h4>Current roster</h4>
+        <div class="member-list">
+          ${managed.map((member) => `
+            <div class="member-row">
+              <span class="avatar-chip">${initials(member.name)}</span>
+              <div>
+                <strong>${escapeHtml(member.name)}</strong>
+                <small>${escapeHtml(member.email)}</small>
+              </div>
+              <button class="ghost-button mini-button" data-action="offboardUser" data-user-id="${escapeHtml(member.id)}">Offboard</button>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+      <article class="workload-card">
+        <h4>Unassigned users</h4>
+        <div class="member-list">
+          ${unassigned.length ? unassigned.map((member) => `
+            <div class="member-row">
+              <span class="avatar-chip">${initials(member.name)}</span>
+              <div>
+                <strong>${escapeHtml(member.name)}</strong>
+                <small>${escapeHtml(member.email)}</small>
+              </div>
+              <button class="secondary-button mini-button" data-action="addToTeam" data-user-id="${escapeHtml(member.id)}">Assign</button>
+            </div>
+          `).join("") : '<p class="empty-column">Every user is assigned.</p>'}
+        </div>
+      </article>
+    </div>
+  `;
 }
 
-function renderMembers() {
-  const profile = activeProfile();
-  const stats = isSupervisor() ? memberStats() : memberStats().filter((member) => member.name === profile?.member);
-  const maxLoad = Math.max(...stats.map((member) => member.load), 1);
-  el.memberList.innerHTML = stats.map((member) => `
+function renderTasks() {
+  const user = activeUser();
+  const tasks = visibleTasksForUser(state, user);
+  el.tasksView.innerHTML = `
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Task lifecycle</p>
+        <h3>${isSupervisor() ? "Managed task board" : "My task board"}</h3>
+      </div>
+      ${isSupervisor() ? '<button class="primary-button" data-action="openTaskModal">Quick Task Creation</button>' : ""}
+    </div>
+    <div class="board">
+      ${kanbanColumns(tasks)}
+    </div>
+  `;
+}
+
+function kanbanColumns(tasks) {
+  return ["TODO", "IN_PROGRESS", "DONE"].map((status) => {
+    const columnTasks = tasks.filter((task) => task.status === status);
+    return `
+      <article class="board-column">
+        <h4>${statusLabels[status]} <span class="section-count">${columnTasks.length}</span></h4>
+        ${columnTasks.length ? columnTasks.map((task) => taskCard(task)).join("") : '<p class="empty-column">No tasks here.</p>'}
+      </article>
+    `;
+  }).join("");
+}
+
+function taskCard(task) {
+  const assignee = state.users.find((user) => user.id === task.assignee_id);
+  const attachments = state.attachments.filter((item) => item.task_id === task.id);
+  const feedback = state.feedback.filter((item) => item.task_id === task.id);
+  const completed = task.completed_at ? new Date(task.completed_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Not completed";
+  const canEdit = isSupervisor() || task.assignee_id === activeUser()?.id;
+  return `
+    <article class="task-card" data-priority="${escapeHtml(task.priority)}">
+      <div class="task-card-header">
+        <strong>${escapeHtml(task.title)}</strong>
+        <span class="state-pill ${task.priority === "HIGH" ? "warning" : ""}">${escapeHtml(priorityLabels[task.priority])}</span>
+      </div>
+      <p>${escapeHtml(task.description)}</p>
+      <div class="task-meta">
+        <span>Due ${escapeHtml(task.due_date)}</span>
+        <span>${escapeHtml(assignee?.name || "Unassigned")}</span>
+        <span>completed_at: ${escapeHtml(completed)}</span>
+      </div>
+      <div class="task-controls">
+        ${isSupervisor() ? `<select data-task-control="assignee" data-task-id="${escapeHtml(task.id)}">${assigneeOptions(task.assignee_id)}</select>` : ""}
+        ${canEdit ? `<select data-task-control="status" data-task-id="${escapeHtml(task.id)}">${statusOptions(task.status)}</select>` : ""}
+      </div>
+      <div class="attachment-strip">
+        ${attachments.map((item) => `<span>${escapeHtml(item.file_name)}</span>`).join("") || "<span>No attachments</span>"}
+      </div>
+      <div class="button-row compact-row">
+        ${canEdit ? `<button class="ghost-button mini-button" data-action="openAttachmentModal" data-task-id="${escapeHtml(task.id)}">Attach file</button>` : ""}
+        ${isSupervisor() ? `<button class="ghost-button mini-button" data-action="openFeedbackModal" data-task-id="${escapeHtml(task.id)}" ${task.status !== "DONE" ? "disabled" : ""}>Evaluate</button>` : ""}
+        <button class="ghost-button mini-button" data-action="inspectTask" data-task-id="${escapeHtml(task.id)}">Inspect</button>
+      </div>
+      ${feedback.length ? `<div class="feedback-chip">${feedback.length} evaluation${feedback.length === 1 ? "" : "s"}</div>` : ""}
+    </article>
+  `;
+}
+
+function renderNotificationsChrome(user) {
+  const unread = notificationsForUser(user.id).filter((item) => !item.is_read);
+  el.notificationCount.textContent = String(unread.length);
+  el.notificationPopover.innerHTML = `
+    <div class="popover-header">
+      <strong>Notification inbox</strong>
+      <button class="ghost-button mini-button" data-action="markVisibleNotificationsRead">Mark read</button>
+    </div>
+    ${notificationsForUser(user.id).slice(0, 4).map(notificationRow).join("") || '<p class="empty-column">No notifications yet.</p>'}
+  `;
+}
+
+function renderNotificationsSection() {
+  const user = activeUser();
+  el.notificationsView.innerHTML = `
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">In-app alerts</p>
+        <h3>Notification center</h3>
+      </div>
+      <button class="secondary-button" data-action="markVisibleNotificationsRead">Mark all visible read</button>
+    </div>
+    <div class="notification-list">
+      ${notificationsForUser(user.id).map(notificationRow).join("") || '<p class="empty-column">No notifications yet.</p>'}
+    </div>
+  `;
+}
+
+function notificationRow(item) {
+  return `
+    <article class="notification-row ${item.is_read ? "is-read" : ""}">
+      <div>
+        <strong>${item.is_read ? "Read" : "Unread"}</strong>
+        <p>${escapeHtml(item.message)}</p>
+        <small>${escapeHtml(new Date(item.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}</small>
+      </div>
+      ${item.is_read ? "" : `<button class="ghost-button mini-button" data-action="markNotificationRead" data-notification-id="${escapeHtml(item.id)}">Read</button>`}
+    </article>
+  `;
+}
+
+function renderAnalytics() {
+  const user = activeUser();
+  const report = reportingForUser(state, user.id);
+  el.analyticsView.innerHTML = `
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Reporting data service</p>
+        <h3>Analytics and recommendations</h3>
+      </div>
+      <span class="section-count">${report.visibleTaskCount} visible tasks</span>
+    </div>
+    <div class="analytics-grid">
+      <article class="workload-card">
+        <h4>Task volume by status</h4>
+        ${Object.entries(report.pipeline).map(([status, count]) => `
+          <div class="analytics-row">
+            <span>${escapeHtml(statusLabels[status])}</span>
+            <strong>${count}</strong>
+          </div>
+        `).join("")}
+      </article>
+      <article class="workload-card">
+        <h4>Personal workflow tracking</h4>
+        <div class="workflow-table">
+          ${report.personalWorkflows.map((row) => `
+            <div>
+              <strong>${escapeHtml(row.name)}</strong>
+              <span>${row.cleared} cleared</span>
+              <span>${row.open} open</span>
+              <span>${row.ratio}%</span>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+      <article class="workload-card">
+        <h4>Predictive recommendations</h4>
+        <div class="recommendation-list">
+          ${report.recommendations.length ? report.recommendations.map((warning) => `<p>${escapeHtml(warning)}</p>`).join("") : "<p>No near-deadline warnings for this role.</p>"}
+        </div>
+      </article>
+      <article class="workload-card schema-card">
+        <h4>API router map</h4>
+        <pre>${escapeHtml(apiRoutes.join("\n"))}</pre>
+      </article>
+    </div>
+  `;
+}
+
+function renderAudit() {
+  el.activityLog.innerHTML = state.auditLog.slice(-8).reverse().map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+}
+
+function metric(label, value, subtext) {
+  return `
+    <article class="metric">
+      <span class="metric-label">${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(subtext)}</small>
+    </article>
+  `;
+}
+
+function rosterRow(member) {
+  const assigned = state.tasks.filter((task) => task.assignee_id === member.id);
+  const open = assigned.filter((task) => task.status !== "DONE").length;
+  return `
     <div class="member-row">
-      <div class="avatar">${escapeHtml(member.initials)}</div>
+      <span class="avatar-chip">${initials(member.name)}</span>
       <div>
         <strong>${escapeHtml(member.name)}</strong>
-        <p>${member.activeTasks} active | ${member.doneTasks} done | ${escapeHtml(member.availability)}</p>
-        <div class="bar"><span style="width: ${Math.round((member.load / maxLoad) * 100)}%"></span></div>
+        <small>${open} open task${open === 1 ? "" : "s"}</small>
       </div>
-      <strong>${member.load} pts</strong>
     </div>
-  `).join("");
+  `;
 }
 
-function renderRisks() {
-  const profile = activeProfile();
-  const risks = visibleTasks().filter((task) => task.status !== "done" && (task.risk === "delay" || task.risk === "watch"));
-  const riskMarkup = risks.length ? risks.map((task) => `
-    <article class="risk-row">
-      <strong>${escapeHtml(task.title)}</strong>
-      <span>${escapeHtml(task.owner)}</span>
-      <p>${escapeHtml(task.activity)}</p>
-      ${isSupervisor() ? `<button class="ghost-button mini-button" data-action="reassignTask" data-task-id="${escapeHtml(task.id)}">Reassign</button>` : ""}
+function restrictedPanel() {
+  return `
+    <article class="workload-card">
+      <h4>Route protected</h4>
+      <p>This section is hidden from team members by the local restrictTo role guard.</p>
     </article>
-  `).join("") : '<p class="empty-column">No active risks.</p>';
-  const feedback = profile?.kind === "member" ? state.feedback.filter((item) => item.owner === profile.member) : [];
-  const feedbackMarkup = feedback.map((item) => `
-    <article class="risk-row feedback-row">
-      <strong>${escapeHtml(item.task)}</strong>
-      <span>${escapeHtml(item.from)}</span>
-      <p>${escapeHtml(item.text)}</p>
-    </article>
-  `).join("");
-  el.riskList.innerHTML = profile?.kind === "member" ? `${riskMarkup}${feedbackMarkup}` : riskMarkup;
-}
-
-function renderLog() {
-  el.activityLog.innerHTML = state.log.slice().reverse().map((item) => `<li>${escapeHtml(item)}</li>`).join("");
-}
-
-function render() {
-  renderDashboard();
-  renderTeamBoard();
-  renderSupervisorBoard();
-  renderSupervisorSummary();
-  renderDecisions();
-  renderMembers();
-  renderRisks();
-  renderLog();
-  saveState();
-}
-
-function ownerOptions(selected) {
-  return ["Unassigned", ...members.map((member) => member.name)]
-    .map((name) => `<option value="${escapeHtml(name)}" ${name === selected ? "selected" : ""}>${escapeHtml(name)}</option>`)
-    .join("");
+  `;
 }
 
 function statusOptions(selected) {
-  return columns
-    .map((column) => `<option value="${escapeHtml(column.id)}" ${column.id === selected ? "selected" : ""}>${escapeHtml(column.title)}</option>`)
-    .join("");
+  return Object.entries(statusLabels).map(([value, label]) => `
+    <option value="${escapeHtml(value)}" ${selected === value ? "selected" : ""}>${escapeHtml(label)}</option>
+  `).join("");
 }
 
-function memberOptions(selected) {
-  return members
-    .map((member) => `<option value="${escapeHtml(member.name)}" ${member.name === selected ? "selected" : ""}>${escapeHtml(member.name)}</option>`)
-    .join("");
+function assigneeOptions(selected) {
+  const teamUserIds = teamMembers(state, activeUser().id).map((user) => user.id);
+  const users = state.users.filter((user) => user.role === "TEAM_MEMBER" && (teamUserIds.includes(user.id) || !user.team_id));
+  return [
+    `<option value="" ${!selected ? "selected" : ""}>Unassigned</option>`,
+    ...users.map((user) => `<option value="${escapeHtml(user.id)}" ${selected === user.id ? "selected" : ""}>${escapeHtml(user.name)}</option>`),
+  ].join("");
 }
 
-function addLog(message) {
-  const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  state.log.push(`${time} - ${message}`);
-  state.log = state.log.slice(-50);
-  renderLog();
-  saveState();
+function notificationsForUser(userId) {
+  return state.notifications
+    .filter((item) => item.user_id === userId)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
-function showToast(message) {
-  el.toast.textContent = message;
-  el.toast.classList.add("is-visible");
-  window.clearTimeout(showToast.timeout);
-  showToast.timeout = window.setTimeout(() => el.toast.classList.remove("is-visible"), 2400);
+function feedbackForUser(userId) {
+  const taskIds = state.tasks.filter((task) => task.assignee_id === userId).map((task) => task.id);
+  return state.feedback.filter((item) => taskIds.includes(item.task_id));
+}
+
+function addAudit(message) {
+  state.auditLog.push(message);
+}
+
+function initials(name) {
+  return name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+}
+
+function daysUntil(dateValue) {
+  const due = new Date(`${dateValue}T23:59:59.000Z`);
+  const today = new Date("2026-06-02T08:00:00.000Z");
+  return Math.ceil((due.getTime() - today.getTime()) / 86400000);
 }
 
 function openModal(title, body) {
@@ -660,220 +595,141 @@ function closeModal() {
   el.modalBody.innerHTML = "";
 }
 
-function acceptRecommendation() {
-  const suggested = suggestedOwners();
-  Object.assign(getTask("presentation"), {
-    owner: suggested.presentation,
-    status: "doing",
-    progress: Math.max(getTask("presentation").progress, 20),
-    activity: "Assigned by team decision"
-  });
-  Object.assign(getTask("report"), {
-    owner: suggested.report,
-    status: "doing",
-    progress: Math.max(getTask("report").progress, 20),
-    activity: "Assigned by team decision"
-  });
-  state.recommendation.status = "Accepted";
-  state.recommendation.message = `Presentation assigned to ${suggested.presentation}; report assigned to ${suggested.report}.`;
-  addLog("Recommendation accepted and tasks assigned.");
-  render();
-  showToast("Recommendation applied.");
+function toast(message) {
+  el.toast.textContent = message;
+  el.toast.classList.add("is-visible");
+  window.setTimeout(() => el.toast.classList.remove("is-visible"), 2400);
 }
 
-function modifyRecommendation() {
-  const presentation = getTask("presentation");
-  const report = getTask("report");
-  openModal("Modify assignment", `
-    <form class="form-grid" id="modifyForm">
-      <label>Presentation owner<select name="presentation">${memberOptions(presentation.owner === "Unassigned" ? suggestedOwners().presentation : presentation.owner)}</select></label>
-      <label>Report owner<select name="report">${memberOptions(report.owner === "Unassigned" ? suggestedOwners().report : report.owner)}</select></label>
+function applyTheme() {
+  el.body.dataset.theme = state.theme;
+  el.themeToggle.textContent = state.theme === "dark" ? "Light Mode" : "Dark Mode";
+}
+
+function openTaskModal() {
+  if (!isSupervisor()) return toast("Only supervisors can create tasks.");
+  openModal("Quick Task Creation", `
+    <form class="form-grid" id="taskForm">
+      <label>Title<input name="title" value="Sprint risk review" required /></label>
+      <label>Description<textarea name="description">Review open work, identify bottlenecks, and assign follow-up owners.</textarea></label>
+      <label>Due date<input name="due_date" type="date" value="2026-06-05" required /></label>
+      <label>Priority<select name="priority">
+        <option value="LOW">Low</option>
+        <option value="MEDIUM" selected>Medium</option>
+        <option value="HIGH">High</option>
+      </select></label>
+      <label>Assignee<select name="assignee_id">${assigneeOptions("")}</select></label>
       <div class="button-row">
-        <button class="primary-button" type="submit">Save</button>
+        <button class="primary-button" type="submit">Create task</button>
         <button class="ghost-button" type="button" data-close-modal>Cancel</button>
       </div>
     </form>
   `);
-  document.getElementById("modifyForm").addEventListener("submit", (event) => {
+  document.getElementById("taskForm").addEventListener("submit", (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    presentation.owner = form.get("presentation");
-    presentation.status = "doing";
-    presentation.progress = Math.max(presentation.progress, 20);
-    presentation.activity = "Modified by team";
-    report.owner = form.get("report");
-    report.status = "doing";
-    report.progress = Math.max(report.progress, 20);
-    report.activity = "Modified by team";
-    state.recommendation.status = "Modified";
-    state.recommendation.message = `Team modified the plan: presentation to ${presentation.owner}, report to ${report.owner}.`;
+    const task = {
+      id: `task-${Date.now()}`,
+      title: form.get("title").trim(),
+      description: form.get("description").trim(),
+      due_date: form.get("due_date"),
+      priority: form.get("priority"),
+      status: "TODO",
+      creator_id: activeUser().id,
+      assignee_id: null,
+      created_at: new Date().toISOString(),
+      completed_at: null,
+    };
+    state.tasks.push(task);
+    if (form.get("assignee_id")) {
+      assignTask(state, task.id, form.get("assignee_id"), activeUser().id);
+    } else {
+      addAudit(`${activeUser().name} created ${task.title} without an assignee.`);
+    }
     closeModal();
-    addLog("Recommendation modified by the team.");
     render();
-    showToast("Assignment modified.");
+    toast("Task created.");
   });
 }
 
-function rejectRecommendation() {
-  openModal("Reject recommendation", `
-    <form class="form-grid" id="rejectForm">
-      <label>Reason<textarea name="reason">The suggested assignment does not fit this week's availability.</textarea></label>
+function openCreateProfileModal() {
+  openModal("Create profile", `
+    <form class="form-grid" id="createProfileForm">
+      <label>Name<input name="name" value="Sara" required /></label>
+      <label>Email<input name="email" type="email" value="sara@teamflow.local" required /></label>
+      <label>Password<input name="password" type="password" value="demo12345" required /></label>
+      <label>Role<select name="role">
+        <option value="TEAM_MEMBER" selected>Team Member</option>
+        <option value="SUPERVISOR">Supervisor</option>
+      </select></label>
+      <p class="quiet-copy">New profiles are local demo accounts stored in this browser only.</p>
       <div class="button-row">
-        <button class="danger-button" type="submit">Reject</button>
+        <button class="primary-button" type="submit">Create and sign in</button>
         <button class="ghost-button" type="button" data-close-modal>Cancel</button>
       </div>
     </form>
   `);
-  document.getElementById("rejectForm").addEventListener("submit", (event) => {
+  document.getElementById("createProfileForm").addEventListener("submit", (event) => {
     event.preventDefault();
-    const reason = new FormData(event.currentTarget).get("reason").trim();
-    state.recommendation.status = "Rejected";
-    state.recommendation.message = "The team rejected this recommendation. Generate a focus plan or modify manually.";
-    state.recommendation.reason = reason || "No reason provided.";
-    closeModal();
-    addLog(`Recommendation rejected: ${state.recommendation.reason}`);
-    render();
-    showToast("Recommendation rejected.");
+    const form = new FormData(event.currentTarget);
+    try {
+      const user = createDemoUser(state, {
+        name: form.get("name"),
+        email: form.get("email"),
+        password: form.get("password"),
+        role: form.get("role"),
+      });
+      state.activeUserId = user.id;
+      state.section = roleSectionsForUser(user)[0];
+      closeModal();
+      saveState();
+      showApp();
+      toast(`Created ${user.name}'s profile.`);
+    } catch (error) {
+      toast(error.message);
+    }
   });
 }
 
-function explainRecommendation() {
-  const suggested = suggestedOwners();
-  openModal("Recommendation evidence", `
-    <div class="explanation-box">
-      <div><strong>For the team</strong><p>The recommendation reduces discussion time and gives each task a clear owner.</p></div>
-      <div><strong>Why ${escapeHtml(suggested.presentation)}</strong><p>This member has the best speed score and no active risk.</p></div>
-      <div><strong>Why ${escapeHtml(suggested.report)}</strong><p>This keeps workload points closer across members.</p></div>
-    </div>
-    <div class="button-row"><button class="primary-button" data-close-modal>Close</button></div>
-  `);
-}
-
-function sendReminder() {
-  const task = riskTask();
-  if (!task) return showToast("No risk to remind.");
-  task.risk = "watch";
-  task.activity = "Private reminder sent";
-  state.riskDecision = "Reminder sent";
-  addLog(`Private reminder sent to ${task.owner} for ${task.title}.`);
-  render();
-  showToast("Reminder sent.");
-}
-
-function reassignRisk(taskId = null) {
-  const task = taskId ? getTask(taskId) : riskTask();
-  if (!task) return showToast("No task to reassign.");
-  const lightest = memberStats().sort((a, b) => a.load - b.load)[0];
-  openModal(`Reassign ${task.title}`, `
-    <form class="form-grid" id="reassignForm">
-      <label>New owner<select name="owner">${memberOptions(lightest.name)}</select></label>
+function openAttachmentModal(taskId) {
+  const task = state.tasks.find((item) => item.id === taskId);
+  if (!task) return;
+  openModal(`Attach file to ${task.title}`, `
+    <form class="form-grid" id="attachmentForm">
+      <label>File<input name="file" type="file" /></label>
+      <label>Fallback file name<input name="file_name" value="progress-evidence.png" /></label>
       <div class="button-row">
-        <button class="primary-button" type="submit">Reassign</button>
+        <button class="primary-button" type="submit">Attach</button>
         <button class="ghost-button" type="button" data-close-modal>Cancel</button>
       </div>
     </form>
   `);
-  document.getElementById("reassignForm").addEventListener("submit", (event) => {
+  document.getElementById("attachmentForm").addEventListener("submit", (event) => {
     event.preventDefault();
-    const oldOwner = task.owner;
-    task.owner = new FormData(event.currentTarget).get("owner");
-    task.risk = "normal";
-    task.status = "doing";
-    task.progress = Math.max(task.progress, 45);
-    task.activity = `Reassigned from ${oldOwner}`;
-    state.riskDecision = "Reassigned";
+    const form = new FormData(event.currentTarget);
+    const file = form.get("file");
+    const fileName = file?.name || form.get("file_name").trim() || "attachment.bin";
+    addAttachment(state, taskId, fileName, `uploads/${fileName}`);
     closeModal();
-    addLog(`${task.title} reassigned from ${oldOwner} to ${task.owner}.`);
     render();
-    showToast("Task reassigned.");
+    toast("Attachment recorded.");
   });
 }
 
-function ignoreRisk() {
-  const task = riskTask();
-  if (task) {
-    task.risk = "watch";
-    task.activity = "Leader reviewed and chose to wait";
-  }
-  state.riskDecision = "Ignored";
-  addLog("Risk reviewed and ignored.");
-  render();
-  showToast("Risk ignored.");
-}
-
-function setTaskOwner(id, owner) {
-  const task = getTask(id);
+function openFeedbackModal(taskId) {
+  const task = state.tasks.find((item) => item.id === taskId);
   if (!task) return;
-  const oldOwner = task.owner;
-  task.owner = owner;
-  if (owner !== "Unassigned" && task.status === "backlog") task.status = "doing";
-  if (task.risk === "delay") {
-    task.risk = "normal";
-    state.riskDecision = "Reassigned";
-  }
-  task.activity = `Owner changed from ${oldOwner}`;
-  addLog(`${task.title} owner changed to ${owner}.`);
-  render();
-}
-
-function setTaskStatus(id, status) {
-  const task = getTask(id);
-  if (!task) return;
-  task.status = status;
-  if (status === "done") {
-    task.progress = 100;
-    task.risk = "normal";
-    task.activity = "Completed";
-  } else if (status === "backlog") {
-    task.progress = 0;
-    task.activity = "Waiting";
-  } else if (task.progress === 0) {
-    task.progress = 25;
-    task.activity = "Started";
-  }
-  addLog(`${task.title} moved to ${columns.find((column) => column.id === status).title}.`);
-  render();
-}
-
-function logProgress(id) {
-  const task = getTask(id);
-  if (!task) return;
-  task.progress = Math.min(100, task.progress + 25);
-  task.status = task.progress >= 100 ? "done" : "doing";
-  task.risk = task.progress >= 50 ? "normal" : task.risk;
-  task.activity = task.progress >= 100 ? "Completed" : "Progress uploaded";
-  addLog(`${task.owner} logged progress on ${task.title}.`);
-  render();
-  showToast("Progress updated.");
-}
-
-function markStuck(id) {
-  const task = getTask(id);
-  if (!task) return;
-  task.risk = "watch";
-  task.activity = "Marked stuck by team member";
-  task.status = "doing";
-  addLog(`${task.owner} marked ${task.title} as stuck.`);
-  render();
-  showToast("Marked stuck. Supervisor can see it.");
-}
-
-function approveTask(id) {
-  const task = getTask(id);
-  if (!task) return;
-  task.approved = true;
-  task.activity = "Approved by supervisor";
-  addLog(`${task.title} approved by supervisor.`);
-  render();
-  showToast("Work approved.");
-}
-
-function leaveFeedback(id) {
-  const task = getTask(id);
-  if (!task) return;
-  openModal(`Feedback for ${task.title}`, `
+  if (task.status !== "DONE") return toast("Feedback unlocks after the task is DONE.");
+  openModal(`Evaluate ${task.title}`, `
     <form class="form-grid" id="feedbackForm">
-      <label>Comment<textarea name="feedback">Good work. Please add one sentence connecting this to the HCAI design justification.</textarea></label>
+      <label>Rating<select name="rating">
+        <option value="5">5 stars</option>
+        <option value="4">4 stars</option>
+        <option value="3">3 stars</option>
+        <option value="2">2 stars</option>
+        <option value="1">1 star</option>
+      </select></label>
+      <label>Comment<textarea name="comment">Strong completion evidence. Keep this linked in the final report.</textarea></label>
       <div class="button-row">
         <button class="primary-button" type="submit">Send feedback</button>
         <button class="ghost-button" type="button" data-close-modal>Cancel</button>
@@ -882,204 +738,157 @@ function leaveFeedback(id) {
   `);
   document.getElementById("feedbackForm").addEventListener("submit", (event) => {
     event.preventDefault();
-    const text = new FormData(event.currentTarget).get("feedback").trim();
-    state.feedback.push({
-      id: `fb-${Date.now()}`,
-      owner: task.owner,
-      from: "Dr. Imran",
-      text,
-      task: task.title
-    });
-    closeModal();
-    addLog(`Feedback sent to ${task.owner} for ${task.title}.`);
-    render();
-    showToast("Feedback sent.");
-  });
-}
-
-function addTask() {
-  if (!isSupervisor()) {
-    showToast("Only the supervisor can create and delegate tasks.");
-    return;
-  }
-  openModal("Add task", `
-    <form class="form-grid" id="addTaskForm">
-      <label>Task name<input name="title" value="Prepare demo script" /></label>
-      <label>Owner<select name="owner">${ownerOptions("Unassigned")}</select></label>
-      <label>Workload points<input name="points" type="number" min="1" max="8" value="2" /></label>
-      <label>Due date<input name="due" value="May 7" /></label>
-      <div class="button-row">
-        <button class="primary-button" type="submit">Add task</button>
-        <button class="ghost-button" type="button" data-close-modal>Cancel</button>
-      </div>
-    </form>
-  `);
-  document.getElementById("addTaskForm").addEventListener("submit", (event) => {
-    event.preventDefault();
     const form = new FormData(event.currentTarget);
-    state.tasks.push({
-      id: `task-${Date.now()}`,
-      title: form.get("title").trim() || "Untitled task",
-      owner: form.get("owner"),
-      status: form.get("owner") === "Unassigned" ? "backlog" : "doing",
-      points: Number(form.get("points")) || 1,
-      progress: form.get("owner") === "Unassigned" ? 0 : 20,
-      due: form.get("due").trim() || "May 7",
-      risk: "normal",
-      activity: "Added manually"
-    });
+    addFeedback(state, taskId, activeUser().id, Number(form.get("rating")), form.get("comment"));
     closeModal();
-    addLog(`Task added: ${form.get("title")}.`);
     render();
-    showToast("Task added.");
+    toast("Feedback sent.");
   });
 }
 
-function focusPlan() {
-  const risk = riskTask();
-  const balance = balanceScore();
-  const suggested = suggestedOwners();
-  state.assistantBrief = risk
-    ? `Supervisor view: ask the leader to handle ${risk.title}. Team view: reassign or send one private reminder, then ask for a small upload by tonight.`
-    : balance < 75
-      ? `Move one small task to ${suggested.report}, then keep ${suggested.presentation} on presentation. This should improve balance without adding meetings.`
-      : "The team is balanced. Keep the assistant quiet and only ask for a short progress upload before the deadline.";
-  addLog("Assistant generated a practical focus plan.");
-  render();
-  showToast("Focus plan updated.");
+function inspectTask(taskId) {
+  const task = state.tasks.find((item) => item.id === taskId);
+  if (!task) return;
+  const attachments = state.attachments.filter((item) => item.task_id === taskId);
+  const feedback = state.feedback.filter((item) => item.task_id === taskId);
+  openModal(`Task detail: ${task.title}`, `
+    <div class="detail-stack">
+      <p>${escapeHtml(task.description)}</p>
+      <div class="task-meta">
+        <span>Status: ${escapeHtml(statusLabels[task.status])}</span>
+        <span>Priority: ${escapeHtml(priorityLabels[task.priority])}</span>
+        <span>Assignee: ${escapeHtml(userName(state, task.assignee_id))}</span>
+        <span>completed_at: ${escapeHtml(task.completed_at || "Locked until DONE")}</span>
+      </div>
+      <h4>Attachments</h4>
+      ${attachments.map((item) => `<p>${escapeHtml(item.file_name)} - ${escapeHtml(item.file_url)}</p>`).join("") || "<p>No attachments yet.</p>"}
+      <h4>Feedback</h4>
+      ${feedback.map((item) => `<p>${item.rating}/5 - ${escapeHtml(item.comment)}</p>`).join("") || "<p>Feedback module unlocks after DONE.</p>"}
+    </div>
+  `);
 }
 
-function requestUpdate(teamId) {
-  const team = state.supervisorTeams.find((item) => item.id === teamId);
-  if (!team) return showSection("tasks");
-  team.note = "Supervisor requested a short update.";
-  team.reviewed = true;
-  addLog(`Supervisor requested update from ${team.name}.`);
+function markVisibleNotificationsRead() {
+  notificationsForUser(activeUser().id).forEach((item) => {
+    if (!item.is_read) markNotificationRead(state, item.id);
+  });
   render();
-}
-
-function checkIn(teamId) {
-  const team = state.supervisorTeams.find((item) => item.id === teamId);
-  if (team) {
-    team.note = "Check-in scheduled.";
-    team.reviewed = true;
-    if (team.state === "risk") team.state = "watch";
-    addLog(`Supervisor scheduled check-in with ${team.name}.`);
-  } else {
-    addLog("Supervisor scheduled check-in with Smart Assistant Team.");
-  }
-  render();
-  showToast("Check-in scheduled.");
-}
-
-function markReviewed(teamId) {
-  const team = state.supervisorTeams.find((item) => item.id === teamId);
-  if (team) {
-    team.reviewed = true;
-    team.note = team.state === "stable" ? "Reviewed. No action needed." : "Reviewed. Monitoring continues.";
-    addLog(`${team.name} marked reviewed.`);
-  } else {
-    addLog("Smart Assistant Team marked reviewed.");
-  }
-  render();
-}
-
-function linkPlatform() {
-  if (state.linked) return showToast("Already linked.");
-  state.linked = true;
-  state.tasks.push({ id: "rubric", title: "Check Blackboard rubric", owner: "Khalid", status: "doing", points: 1, progress: 20, due: "May 6", risk: "normal", activity: "Imported from Blackboard" });
-  el.linkPlatform.textContent = "Blackboard Linked";
-  el.linkPlatform.disabled = true;
-  addLog("Blackboard linked and rubric task imported.");
-  render();
+  toast("Notifications marked read.");
 }
 
 function resetDemo() {
-  state = clone(initialState);
+  state = createInitialDemoState();
   localStorage.removeItem(storageKey);
-  el.linkPlatform.textContent = "Link Blackboard";
-  el.linkPlatform.disabled = false;
-  applyTheme();
-  el.appShell.hidden = true;
-  el.welcomeScreen.hidden = false;
-  renderProfiles();
-  showToast("Demo reset.");
+  renderLogin();
+  showLogin();
+  toast("Local demo reset.");
 }
 
-function action(name, taskId = null, teamId = null) {
-  const actions = {
-    accept: acceptRecommendation,
-    modify: modifyRecommendation,
-    reject: rejectRecommendation,
-    explain: explainRecommendation,
-    reference: explainRecommendation,
-    reminder: sendReminder,
-    reassignRisk: () => reassignRisk(),
-    reassignTask: () => reassignRisk(taskId),
-    ignore: ignoreRisk,
-    progress: () => logProgress(taskId),
-    stuck: () => markStuck(taskId),
-    approve: () => approveTask(taskId),
-    feedback: () => leaveFeedback(taskId),
-    openTeamBoard: () => showSection("tasks"),
-    requestUpdate: () => requestUpdate(teamId),
-    checkIn: () => checkIn(teamId),
-    reviewed: () => markReviewed(teamId)
-  };
-  actions[name]?.();
+function handleAction(target) {
+  const action = target.dataset.action;
+  const taskId = target.dataset.taskId;
+  const userId = target.dataset.userId;
+  const notificationId = target.dataset.notificationId;
+  const team = state.teams.find((item) => item.supervisor_id === activeUser()?.id);
+
+  if (action === "openTaskModal") openTaskModal();
+  if (action === "openCreateProfileModal") openCreateProfileModal();
+  if (action === "openAttachmentModal") openAttachmentModal(taskId);
+  if (action === "openFeedbackModal") openFeedbackModal(taskId);
+  if (action === "inspectTask") inspectTask(taskId);
+  if (action === "markNotificationRead") {
+    markNotificationRead(state, notificationId);
+    render();
+  }
+  if (action === "markVisibleNotificationsRead") markVisibleNotificationsRead();
+  if (action === "addToTeam" && team) {
+    addUserToTeam(state, userId, team.id, activeUser().id);
+    render();
+    toast("User assigned to team.");
+  }
+  if (action === "offboardUser") {
+    offboardUser(state, userId, activeUser().id);
+    render();
+    toast("User offboarded.");
+  }
 }
 
-el.nav.forEach((item) => item.addEventListener("click", () => showSection(item.dataset.section)));
-el.profileGrid.addEventListener("click", (event) => {
-  const card = event.target.closest("[data-profile-id]");
-  if (card) openProfile(card.dataset.profileId);
+el.loginForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  login(el.loginEmail.value.trim(), el.loginPassword.value);
 });
-el.themeToggle.addEventListener("click", toggleTheme);
-el.linkPlatform.addEventListener("click", linkPlatform);
-el.switchProfile.addEventListener("click", switchProfile);
-document.getElementById("generateFocusPlan").addEventListener("click", focusPlan);
-document.getElementById("acceptSuggestion").addEventListener("click", acceptRecommendation);
-document.getElementById("modifySuggestion").addEventListener("click", modifyRecommendation);
-document.getElementById("rejectSuggestion").addEventListener("click", rejectRecommendation);
-document.getElementById("explainSuggestion").addEventListener("click", explainRecommendation);
-document.getElementById("sendReminder").addEventListener("click", sendReminder);
-document.getElementById("reassignRisk").addEventListener("click", () => reassignRisk());
-document.getElementById("ignoreRisk").addEventListener("click", ignoreRisk);
-document.getElementById("addTask").addEventListener("click", addTask);
-document.getElementById("resetDemo").addEventListener("click", resetDemo);
-el.closeModal.addEventListener("click", closeModal);
-el.modalBackdrop.addEventListener("click", (event) => {
-  if (event.target === el.modalBackdrop || event.target.matches("[data-close-modal]")) closeModal();
+
+el.demoAccounts.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-demo-email]");
+  if (!button) return;
+  el.loginEmail.value = button.dataset.demoEmail;
+  el.loginPassword.value = "demo12345";
+  login(el.loginEmail.value, el.loginPassword.value);
 });
+
+el.navList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-section]");
+  if (!button) return;
+  state.section = button.dataset.section;
+  render();
+});
+
 document.addEventListener("click", (event) => {
   const actionTarget = event.target.closest("[data-action]");
-  if (actionTarget) action(actionTarget.dataset.action, actionTarget.dataset.taskId || null, actionTarget.dataset.teamId || null);
+  const jumpTarget = event.target.closest("[data-section-jump]");
+  if (actionTarget) handleAction(actionTarget);
+  if (jumpTarget) {
+    state.section = jumpTarget.dataset.sectionJump;
+    render();
+  }
   if (event.target.matches("[data-close-modal]")) closeModal();
 });
+
 document.addEventListener("change", (event) => {
   const control = event.target.closest("[data-task-control]");
   if (!control) return;
-  if (control.dataset.taskControl === "owner") setTaskOwner(control.dataset.taskId, control.value);
-  if (control.dataset.taskControl === "status") setTaskStatus(control.dataset.taskId, control.value);
+  const taskId = control.dataset.taskId;
+  if (control.dataset.taskControl === "status") {
+    setTaskStatus(state, taskId, control.value, activeUser().id);
+  }
+  if (control.dataset.taskControl === "assignee") {
+    const task = state.tasks.find((item) => item.id === taskId);
+    if (control.value) {
+      assignTask(state, taskId, control.value, activeUser().id);
+    } else if (task) {
+      task.assignee_id = null;
+      task.status = "TODO";
+      addAudit(`${activeUser().name} cleared the assignee for ${task.title}.`);
+    }
+  }
+  render();
+});
+
+el.notificationToggle.addEventListener("click", () => {
+  state.section = "notifications";
+  el.notificationPopover.hidden = true;
+  el.notificationToggle.setAttribute("aria-expanded", "false");
+  render();
+});
+
+el.themeToggle.addEventListener("click", () => {
+  state.theme = state.theme === "dark" ? "light" : "dark";
+  render();
+});
+
+el.logoutButton.addEventListener("click", showLogin);
+el.resetDemo.addEventListener("click", resetDemo);
+el.closeModal.addEventListener("click", closeModal);
+el.modalBackdrop.addEventListener("click", (event) => {
+  if (event.target === el.modalBackdrop) closeModal();
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !el.modalBackdrop.hidden) closeModal();
 });
 
-if (state.linked) {
-  el.linkPlatform.textContent = "Blackboard Linked";
-  el.linkPlatform.disabled = true;
-}
-applyTheme();
-renderProfiles();
-if (activeProfile()) {
-  el.welcomeScreen.hidden = true;
-  el.appShell.hidden = false;
-  el.body.dataset.role = activeProfile().kind;
-  renderNavigation();
-  showSection(state.section);
-  render();
+renderLogin();
+if (activeUser()) {
+  showApp();
 } else {
-  el.appShell.hidden = true;
-  el.welcomeScreen.hidden = false;
+  showLogin();
 }
